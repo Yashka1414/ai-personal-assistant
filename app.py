@@ -1,47 +1,73 @@
 import streamlit as st
 from groq import Groq
 
-st.set_page_config(page_title="AI Personal Assistant", page_icon="⚡")
-st.title("⚡ AI Personal Assistant")
+st.set_page_config(page_title="AI Personal Assistant", page_icon="🤖", layout="wide")
+st.title("🤖 Enterprise AI Personal Assistant")
 
-api_key = st.sidebar.text_input("Groq API Key:", type="password")
-task_type = st.sidebar.selectbox("Choose Task:", ["General QA & Search", "Draft Email", "Summarize Text"])
+# Sidebar Controls & API Security
+st.sidebar.header("⚙️ Configuration & Security")
+api_key = st.sidebar.text_input("Enter Groq API Key:", type="password")
 
 if not api_key:
-    st.info("Enter your Groq API Key to start.")
+    st.info("Please enter your Groq API Key in the sidebar to start chatting.")
     st.stop()
 
-client = Groq(api_key=api_key)
+# Initialize Client
+try:
+    client = Groq(api_key=api_key)
+except Exception as e:
+    st.error(f"Authentication Setup Error: {str(e)}")
+    st.stop()
 
-# Web Speech API JS Snippet for Voice Input
-st.components.v1.html("""
-    <script>
-    function record() {
-        var recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
-        recognition.onresult = function(e) {
-            const text = e.results[0][0].transcript;
-            const inputEl = window.parent.document.querySelector('textarea[aria-label="Enter your prompt/command:"]');
-            if(inputEl) { inputEl.value = text; inputEl.dispatchEvent(new Event('input', { bubbles: true })); }
-        }
-        recognition.start();
-    }
-    </script>
-    <button onclick="record()" style="padding: 8px 12px; border-radius: 5px; cursor: pointer;">🎙️ Speak Command</button>
-""", height=50)
+# Hyperparameter Tuning Controls (from notes: Temperature & Tokens)
+temperature = st.sidebar.slider("Temperature (Creativity):", min_value=0.0, max_value=1.0, value=0.7, step=0.1)
+max_tokens = st.sidebar.slider("Max Output Tokens:", min_value=100, max_value=2048, value=1024, step=100)
 
-user_input = st.text_area("Enter your prompt/command:")
+# Persona / System Prompt Setup
+persona = st.sidebar.selectbox(
+    "Select System Persona:",
+    ["Senior Software Architect", "Data Science & ML Mentor", "Technical Interviewer", "General Assistant"]
+)
 
-if st.button("Run Task") and user_input:
-    prompts = {
-        "General QA & Search": f"Answer concisely: {user_input}",
-        "Draft Email": f"Draft a professional email based on this request: {user_input}",
-        "Summarize Text": f"Provide a concise summary with key points for: {user_input}"
-    }
-    
-    with st.spinner("Processing..."):
-        res = client.chat.completions.create(
-            model="llama3-70b-8192",
-            messages=[{"role": "user", "content": prompts[task_type]}]
-        )
-        st.markdown("### Result:")
-        st.write(res.choices[0].message.content)
+persona_prompts = {
+    "Senior Software Architect": "You are a Senior Software Architect. Provide clear, scalable, high-performance solution designs with clean code practices.",
+    "Data Science & ML Mentor": "You are an expert Data Scientist. Explain ML models, evaluation metrics (precision/recall/F1), and math concepts clearly.",
+    "Technical Interviewer": "You are a demanding Technical Interviewer. Ask follow-up probing questions and evaluate response logic critically.",
+    "General Assistant": "You are a helpful, concise, and professional AI assistant."
+}
+
+# Chat Memory Management
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+# Display Chat History
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
+
+# User Input
+if user_input := st.chat_input("Ask anything..."):
+    st.session_state.messages.append({"role": "user", "content": user_input})
+    with st.chat_message("user"):
+        st.markdown(user_input)
+
+    # API Execution & Response Generation
+    with st.chat_message("assistant"):
+        with st.spinner("Processing request..."):
+            try:
+                # Payload construction with explicit System Prompt
+                payload_messages = [{"role": "system", "content": persona_prompts[persona]}] + st.session_state.messages
+                
+                res = client.chat.completions.create(
+                    model="llama-3.1-8b-instant",
+                    messages=payload_messages,
+                    temperature=temperature,
+                    max_tokens=max_tokens
+                )
+                
+                reply = res.choices[0].message.content
+                st.markdown(reply)
+                st.session_state.messages.append({"role": "assistant", "content": reply})
+                
+            except Exception as e:
+                st.error(f"REST API Execution Error: {str(e)}")
