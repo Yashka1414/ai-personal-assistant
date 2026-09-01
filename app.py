@@ -7,7 +7,6 @@ st.title("🤖 Enterprise AI Personal Assistant")
 # Sidebar Controls & API Security
 st.sidebar.header("⚙️ Configuration & Security")
 api_key = st.sidebar.text_input("Enter Groq API Key:", type="password")
-
 if not api_key:
     st.info("Please enter your Groq API Key in the sidebar to start chatting.")
     st.stop()
@@ -28,7 +27,6 @@ persona = st.sidebar.selectbox(
     "Select System Persona:",
     ["Senior Software Architect", "Data Science & ML Mentor", "Technical Interviewer", "General Assistant"]
 )
-
 persona_prompts = {
     "Senior Software Architect": "You are a Senior Software Architect. Provide clear, scalable, high-performance solution designs with clean code practices.",
     "Data Science & ML Mentor": "You are an expert Data Scientist. Explain ML models, evaluation metrics (precision/recall/F1), and math concepts clearly.",
@@ -57,17 +55,17 @@ if user_input := st.chat_input("Ask anything..."):
             try:
                 # Payload construction with explicit System Prompt
                 payload_messages = [{"role": "system", "content": persona_prompts[persona]}] + st.session_state.messages
-                
+
                 res = client.chat.completions.create(
-                    model="llama-3.1-8b-instant",
+                    model="openai/gpt-oss-20b",  # updated: llama-3.1-8b-instant was deprecated by Groq
                     messages=payload_messages,
                     temperature=temperature,
                     max_tokens=max_tokens
                 )
-                
+
                 reply = res.choices[0].message.content
                 st.markdown(reply)
                 st.session_state.messages.append({"role": "assistant", "content": reply})
-                
+
             except Exception as e:
                 st.error(f"REST API Execution Error: {str(e)}")
